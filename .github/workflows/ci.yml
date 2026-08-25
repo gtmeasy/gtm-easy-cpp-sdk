@@ -1,0 +1,58 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-msvc-winhttp
+            os: windows-latest
+            extra: -DGTMEASY_TRANSPORT=winhttp
+          - name: ubuntu-gcc
+            os: ubuntu-latest
+            extra: -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
+          - name: ubuntu-clang
+            os: ubuntu-latest
+            extra: -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+          - name: macos
+            os: macos-latest
+            extra: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lukka/get-cmake@latest
+      - name: Install libcurl
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DGTMEASY_BUILD_TESTS=ON -DGTMEASY_BUILD_EXAMPLES=ON ${{ matrix.extra }}
+      - name: Build
+        run: cmake --build build --config Release -j
+      - name: Test
+        run: ctest --test-dir build --output-on-failure -C Release
+
+  package:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lukka/get-cmake@latest
+      - name: Configure static x64
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DGTMEASY_TRANSPORT=winhttp -DGTMEASY_BUILD_TESTS=OFF -DGTMEASY_BUILD_EXAMPLES=OFF
+      - name: Build
+        run: cmake --build build --config Release -j
+      - name: Install
+        run: cmake --install build --prefix dist --config Release
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path dist\* -DestinationPath gtmeasy-growth-${{ github.ref_name }}-windows-x64-static.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64-static
+          path: gtmeasy-growth-*.zip
