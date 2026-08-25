@@ -1,0 +1,16 @@
+#include "context.hpp"
+
+#include <doctest/doctest.h>
+
+TEST_CASE("Context snapshot has sdk, sdk_version, platform and non-empty os_version") {
+  const auto snap = gtmeasy::internal::snapshot_context();
+  CHECK(snap.sdk == "cpp");
+  CHECK(snap.sdk_version == "0.1.0");
+  CHECK(snap.platform == gtmeasy::internal::platform_name());
+  CHECK_FALSE(snap.os_version.empty());
+  const auto j = gtmeasy::internal::context_to_json(snap);
+  CHECK(j["sdk"] == "cpp");
+  CHECK(j["sdk_version"] == "0.1.0");
+  CHECK(j["platform"] == snap.platform);
+  CHECK(j["os_version"] == snap.os_version);
+}
