@@ -247,7 +247,7 @@ void run_flush_cycle(gtm_growth* c, int timeout_ms_budget) {
   if (items.empty()) {
     return;
   }
-  const int prefix = std::min(100, static_cast<int>(items.size()));
+  const int prefix = (std::min)(100, static_cast<int>(items.size()));
   std::vector<char> keep(static_cast<size_t>(prefix), 1);
 
   for (int i = 0; i < prefix; ++i) {

@@ -43,6 +43,7 @@ target_link_libraries(gtmeasy_growth_tests PRIVATE
   Threads::Threads
 )
 
+gtmeasy_apply_win32_defs(gtmeasy_growth_tests)
 if(MSVC)
   target_compile_options(gtmeasy_growth_tests PRIVATE /W4 /permissive- /utf-8)
 else()

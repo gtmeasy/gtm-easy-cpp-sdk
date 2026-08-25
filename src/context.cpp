@@ -13,6 +13,9 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #elif defined(__APPLE__)
 #include <CoreFoundation/CoreFoundation.h>
@@ -131,7 +134,7 @@ void fill_windows(DeviceContext* ctx) {
     auto fn = reinterpret_cast<RtlGetVersionFn>(GetProcAddress(ntdll, "RtlGetVersion"));
     if (fn) {
       RtlOsVersionInfo info{};
-      info.dwOSVersionInfoSize = sizeof(info);
+      info.dwOSVersionInfoSize = static_cast<ULONG>(sizeof(info));
       if (fn(&info) == 0) {
         ctx->os_version = std::to_string(info.dwMajorVersion) + "." +
                           std::to_string(info.dwMinorVersion) + "." +
@@ -144,13 +147,13 @@ void fill_windows(DeviceContext* ctx) {
   if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"HARDWARE\\DESCRIPTION\\System\\BIOS", 0, KEY_READ, &key) ==
       ERROR_SUCCESS) {
     auto read_reg = [&](const wchar_t* value) {
-      wchar_t buf[256];
-      DWORD size = sizeof(buf);
+      wchar_t buf[256] = {};
+      DWORD size = static_cast<DWORD>(sizeof(buf));
       DWORD type = 0;
       if (RegQueryValueExW(key, value, nullptr, &type, reinterpret_cast<LPBYTE>(buf), &size) ==
               ERROR_SUCCESS &&
           (type == REG_SZ || type == REG_EXPAND_SZ)) {
-        return wide_to_utf8(buf);
+        return wide_to_utf8(std::wstring(buf));
       }
       return std::string();
     };
@@ -160,19 +163,19 @@ void fill_windows(DeviceContext* ctx) {
   }
 
   MEMORYSTATUSEX mem{};
-  mem.dwLength = sizeof(mem);
+  mem.dwLength = static_cast<DWORD>(sizeof(mem));
   if (GlobalMemoryStatusEx(&mem)) {
     ctx->physical_memory_bytes = static_cast<uint64_t>(mem.ullTotalPhys);
   }
 
-  wchar_t locale[85];
-  if (GetUserDefaultLocaleName(locale, 85) > 0) {
-    ctx->locale = wide_to_utf8(locale);
+  wchar_t locale[LOCALE_NAME_MAX_LENGTH] = {};
+  if (GetUserDefaultLocaleName(locale, LOCALE_NAME_MAX_LENGTH) > 0) {
+    ctx->locale = wide_to_utf8(std::wstring(locale));
   }
 
   DYNAMIC_TIME_ZONE_INFORMATION tz{};
   GetDynamicTimeZoneInformation(&tz);
-  ctx->timezone = windows_iana_zone(wide_to_utf8(tz.TimeZoneKeyName));
+  ctx->timezone = windows_iana_zone(wide_to_utf8(std::wstring(tz.TimeZoneKeyName)));
 }
 #endif
 

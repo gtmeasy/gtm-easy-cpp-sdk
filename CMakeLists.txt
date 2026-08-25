@@ -80,6 +80,7 @@ target_compile_definitions(gtmeasy_growth PRIVATE GTMEASY_BUILDING)
 if(GTMEASY_BUILD_SHARED)
   target_compile_definitions(gtmeasy_growth PUBLIC GTMEASY_SHARED)
 endif()
+gtmeasy_apply_win32_defs(gtmeasy_growth)
 
 target_link_libraries(gtmeasy_growth
   PUBLIC nlohmann_json::nlohmann_json

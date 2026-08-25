@@ -4,17 +4,12 @@
 #include <cctype>
 #include <chrono>
 #include <cmath>
+#include <ctime>
 #include <fstream>
 #include <iomanip>
 #include <random>
 #include <sstream>
 #include <system_error>
-
-#if defined(_WIN32)
-#include <windows.h>
-#else
-#include <unistd.h>
-#endif
 
 #include <filesystem>
 
@@ -99,7 +94,7 @@ std::string rfc3339_now() {
 }
 
 double backoff_seconds(int attempt) {
-  const double base = std::min(60.0, std::ldexp(1.0, std::max(0, attempt)));
+  const double base = (std::min)(60.0, std::ldexp(1.0, (std::max)(0, attempt)));
   std::uniform_real_distribution<double> dist(0.8, 1.2);
   return base * dist(rng());
 }

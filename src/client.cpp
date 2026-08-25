@@ -7,7 +7,6 @@
 
 #include <chrono>
 #include <cstdio>
-#include <filesystem>
 #include <new>
 
 namespace gtmeasy {

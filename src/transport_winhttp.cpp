@@ -17,6 +17,11 @@ namespace gtmeasy {
 namespace internal {
 namespace {
 
+DWORD to_dword(size_t n) {
+  const size_t max_dword = static_cast<size_t>(0xffffffffu);
+  return static_cast<DWORD>(n > max_dword ? max_dword : n);
+}
+
 std::wstring utf8_to_wide(const std::string& s) {
   if (s.empty()) {
     return {};
@@ -93,7 +98,7 @@ class WinHttpTransport final : public Transport {
     parts.dwExtraInfoLength = 2048;
 
     const std::wstring wurl = utf8_to_wide(url);
-    if (!WinHttpCrackUrl(wurl.c_str(), static_cast<DWORD>(wurl.size()), 0, &parts)) {
+    if (!WinHttpCrackUrl(wurl.c_str(), to_dword(wurl.size()), 0, &parts)) {
       out.error = "WinHttpCrackUrl failed";
       return out;
     }
@@ -150,7 +155,7 @@ class WinHttpTransport final : public Transport {
     if (!header_block.empty()) {
       if (!WinHttpAddRequestHeaders(request.get(),
                                     header_block.c_str(),
-                                    static_cast<DWORD>(header_block.size()),
+                                    to_dword(header_block.size()),
                                     WINHTTP_ADDREQ_FLAG_ADD | WINHTTP_ADDREQ_FLAG_REPLACE)) {
         out.error = "WinHttpAddRequestHeaders failed";
         return out;
@@ -162,8 +167,8 @@ class WinHttpTransport final : public Transport {
                                          0,
                                          body.empty() ? WINHTTP_NO_REQUEST_DATA
                                                       : const_cast<LPVOID>(static_cast<LPCVOID>(body.data())),
-                                         static_cast<DWORD>(body.size()),
-                                         static_cast<DWORD>(body.size()),
+                                         to_dword(body.size()),
+                                         to_dword(body.size()),
                                          0);
     if (!sent) {
       out.error = "WinHttpSendRequest failed";

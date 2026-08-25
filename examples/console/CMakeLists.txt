@@ -1,5 +1,6 @@
 add_executable(gtmeasy_console_example main.cpp)
 target_link_libraries(gtmeasy_console_example PRIVATE GtmEasy::growth)
+gtmeasy_apply_win32_defs(gtmeasy_console_example)
 if(MSVC)
   target_compile_options(gtmeasy_console_example PRIVATE /W4 /permissive- /utf-8)
 else()
