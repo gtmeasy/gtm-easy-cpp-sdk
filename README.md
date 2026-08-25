@@ -8,34 +8,45 @@ Sibling SDKs: [Apple (Swift)](https://github.com/gtmeasy/gtm-easy-apple-sdk) · 
 
 ## Status
 
-`0.1.0` — scaffold. API surface, build system, and the generated OpenAPI client are being designed; nothing is published yet.
+`0.1.0` — first buildable release. Public surface is the C ABI in `include/gtmeasy/growth_c.h` and the C++17 wrapper in `include/gtmeasy/growth.h`.
 
-## Planned layout
+## Layout
 
 ```
-include/gtmeasy/   public headers (C++17, stable C API shell planned)
-src/               SDK implementation (event queue, persistence, HTTP transport)
-generated/         OpenAPI-generated API client (do not edit by hand)
-examples/          minimal Win32 / console samples
-tests/
+include/gtmeasy/   public headers (C API, C++ wrapper, event name constants)
+src/               SDK implementation (queue, persistence, HTTP transport)
+examples/console   identify + track + flush sample
+tests/             doctest suite (in-process mock server)
+ports/             vcpkg overlay port
 ```
 
-## Planned usage
+## Usage
 
 ```cpp
+#include <gtmeasy/events.h>
 #include <gtmeasy/growth.h>
 
-auto analytics = gtmeasy::GrowthAnalytics::create({ .apiKey = "gtm_growth_..." });
+gtmeasy::Config cfg;
+cfg.apiKey = "gtm_growth_...";
+cfg.app = "my-app";
+cfg.cacheDir = gtmeasy::defaultCacheDir("MyCompany", "MyApp");
+
+auto analytics = gtmeasy::GrowthAnalytics::create(cfg);
+if (!analytics) {
+  return;
+}
 analytics->identify("user_123", {{"plan", "pro"}});
-analytics->track("paywall.shown", {{"placement", "onboarding"}});
+analytics->track(gtmeasy::events::paywall_opened, {{"placement", "onboarding"}});
 analytics->flush();
 ```
+
+`track()` / `identify()` never block on the network: they validate, enqueue, and return. Call `flush()` (or destroy the client) to wait for delivery.
+
+Version string: `gtmeasy::GrowthAnalytics::version()` (currently `"0.1.0"`).
 
 ## Integration
 
 The SDK ships as a CMake package. Target: `GtmEasy::growth` · package name: `GtmEasyGrowth` · vcpkg port: `gtmeasy-growth`.
-
-> Status: the CMake layout and target names below are the contract for 0.1.0; the vcpkg port lands with the first buildable release. Until then use FetchContent against a tag.
 
 ### Requirements
 
@@ -117,7 +128,7 @@ find_package(GtmEasyGrowth CONFIG REQUIRED)
 #include <cstdio>
 
 int main() {
-  std::printf("GTM Easy growth SDK %s\n", gtmeasy::version());
+  std::printf("GTM Easy growth SDK %s\n", gtmeasy::GrowthAnalytics::version());
 }
 ```
 
