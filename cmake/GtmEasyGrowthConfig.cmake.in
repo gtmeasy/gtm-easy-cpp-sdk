@@ -1,0 +1,11 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(nlohmann_json)
+if(@GTMEASY_USES_CURL@)
+  find_dependency(CURL)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/GtmEasyGrowthTargets.cmake")
+
+check_required_components(GtmEasyGrowth)

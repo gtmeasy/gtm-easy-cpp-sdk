@@ -1,0 +1,21 @@
+# SHA512 is a placeholder filled at release.
+vcpkg_from_github(
+    OUT_SOURCE_PATH SOURCE_PATH
+    REPO gtmeasy/gtm-easy-cpp-sdk
+    REF v0.1.0
+    SHA512 0
+    HEAD_REF main
+)
+
+vcpkg_cmake_configure(
+    SOURCE_PATH "${SOURCE_PATH}"
+    OPTIONS
+        -DGTMEASY_BUILD_TESTS=OFF
+        -DGTMEASY_BUILD_EXAMPLES=OFF
+)
+
+vcpkg_cmake_install()
+vcpkg_cmake_config_fixup(PACKAGE_NAME GtmEasyGrowth CONFIG_PATH lib/cmake/GtmEasyGrowth)
+vcpkg_copy_pdbs()
+
+file(INSTALL "${SOURCE_PATH}/LICENSE" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}" RENAME copyright)

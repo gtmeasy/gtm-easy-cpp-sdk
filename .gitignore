@@ -3,3 +3,10 @@ build/
 out/
 .vscode/
 .idea/
+CMakeUserPresets.json
+cmake-build-*/
+vcpkg_installed/
+Testing/
+.cache/
+*.user
+
