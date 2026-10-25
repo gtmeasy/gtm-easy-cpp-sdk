@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(GtmEasyGrowth VERSION 0.1.0 LANGUAGES C CXX)
+project(GtmEasyGrowth VERSION 0.2.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -46,6 +46,7 @@ find_package(Threads REQUIRED)
 set(GTMEASY_SOURCES
   src/c_api.cpp
   src/client.cpp
+  src/client_create.cpp
   src/flush.cpp
   src/queue.cpp
   src/storage.cpp

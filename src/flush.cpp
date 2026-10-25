@@ -230,7 +230,7 @@ bool send_events(gtm_growth* c,
 void reset_batch_supported_for_tests() { g_batch_supported = true; }
 
 void run_flush_cycle(gtm_growth* c, int timeout_ms_budget) {
-  if (!c || c->auth_failed.load()) {
+  if (!c || c->suppressed || c->auth_failed.load()) {
     return;
   }
   std::lock_guard<std::mutex> flush_lock(c->flush_mu);

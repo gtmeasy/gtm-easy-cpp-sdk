@@ -20,6 +20,16 @@ inline gtm_error_t& last_error() {
   return err;
 }
 
+// Build channel of the host app. Never auto-detected: pass it from the app,
+// e.g. `#ifndef NDEBUG` -> BuildChannel::Debug. Unknown is never suppressed.
+enum class BuildChannel : int {
+  Debug = GTM_BUILD_CHANNEL_DEBUG,
+  TestFlight = GTM_BUILD_CHANNEL_TESTFLIGHT,
+  InternalTest = GTM_BUILD_CHANNEL_INTERNAL_TEST,
+  Production = GTM_BUILD_CHANNEL_PRODUCTION,
+  Unknown = GTM_BUILD_CHANNEL_UNKNOWN,
+};
+
 struct Config {
   std::string apiKey;
   std::string app;
@@ -34,6 +44,11 @@ struct Config {
   int requestTimeoutMs = 10000;
   bool useBatchEndpoint = true;
   gtm_log_level_t logLevel = GTM_LOG_WARN;
+  // Suppressed = disabled || (suppressTestBuilds && buildChannel is Debug,
+  // TestFlight or InternalTest): nothing is sent or written to cacheDir.
+  bool disabled = false;
+  bool suppressTestBuilds = false;
+  BuildChannel buildChannel = BuildChannel::Unknown;
 };
 
 inline std::string defaultCacheDir(const std::string& vendor, const std::string& app) {
@@ -75,8 +90,14 @@ class GrowthAnalytics {
     c.use_batch_endpoint = config.useBatchEndpoint ? 1 : 0;
     c.log_level = config.logLevel;
 
+    gtm_growth_config_ext_t ext;
+    gtm_growth_config_ext_init(&ext);
+    ext.disabled = config.disabled ? 1 : 0;
+    ext.suppress_test_builds = config.suppressTestBuilds ? 1 : 0;
+    ext.build_channel = static_cast<int>(config.buildChannel);
+
     gtm_growth_t* raw = nullptr;
-    last_error() = gtm_growth_create(&c, &raw);
+    last_error() = gtm_growth_create_ext(&c, &ext, &raw);
     if (last_error() != GTM_OK || raw == nullptr) {
       return nullptr;
     }
@@ -164,6 +185,14 @@ class GrowthAnalytics {
       return GTM_ERROR_NOT_INITIALIZED;
     }
     return gtm_growth_reset(client_);
+  }
+
+  // True when events are dropped (disabled, or a suppressed test build).
+  bool isSuppressed() const { return client_ != nullptr && gtm_growth_is_suppressed(client_) != 0; }
+
+  BuildChannel buildChannel() const {
+    return client_ ? static_cast<BuildChannel>(gtm_growth_build_channel(client_))
+                   : BuildChannel::Unknown;
   }
 
   std::string anonymousId() const {

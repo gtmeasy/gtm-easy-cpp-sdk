@@ -78,6 +78,9 @@ void ClickIdStore::prune() {
 }
 
 bool ClickIdStore::save(std::string* error) {
+  if (!persist_) {
+    return true;
+  }
   nlohmann::json j = nlohmann::json::object();
   for (const auto& kv : ids_) {
     j[kv.first] = nlohmann::json{{"value", kv.second.value}, {"ts", kv.second.ts}};

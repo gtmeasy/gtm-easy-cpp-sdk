@@ -31,6 +31,10 @@ struct gtm_growth {
   gtm_log_level_t log_level = GTM_LOG_WARN;
   gtm_log_fn log_fn = nullptr;
   void* log_user_data = nullptr;
+  // Set once at create; never changes. When true: no network, no worker
+  // thread, no writes to cache_dir.
+  bool suppressed = false;
+  gtm_build_channel_t build_channel = GTM_BUILD_CHANNEL_UNKNOWN;
 
   gtmeasy::internal::Storage storage;
   gtmeasy::internal::Queue queue;
@@ -74,6 +78,9 @@ nlohmann::json build_identify(gtm_growth* c,
                               const char* username,
                               const char* email,
                               nlohmann::json traits);
+
+const char* build_channel_name(gtm_build_channel_t channel);
+bool compute_suppressed(bool disabled, bool suppress_test_builds, gtm_build_channel_t channel);
 
 void worker_main(gtm_growth* c);
 void run_flush_cycle(gtm_growth* c, int timeout_ms_budget);

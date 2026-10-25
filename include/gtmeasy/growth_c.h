@@ -1,6 +1,8 @@
 #ifndef GTMEASY_GROWTH_C_H
 #define GTMEASY_GROWTH_C_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -59,8 +61,39 @@ typedef struct gtm_growth_config {
   void* log_user_data;
 } gtm_growth_config_t;
 
+/* Build channel of the host app. The SDK never auto-detects it (the library is
+ * compiled separately from the host, so its NDEBUG says nothing about the app);
+ * pass it explicitly, e.g. `#ifndef NDEBUG` -> GTM_BUILD_CHANNEL_DEBUG. */
+typedef enum gtm_build_channel {
+  GTM_BUILD_CHANNEL_UNKNOWN = 0, /* never suppressed */
+  GTM_BUILD_CHANNEL_DEBUG = 1,
+  GTM_BUILD_CHANNEL_TESTFLIGHT = 2,
+  GTM_BUILD_CHANNEL_INTERNAL_TEST = 3,
+  GTM_BUILD_CHANNEL_PRODUCTION = 4
+} gtm_build_channel_t;
+
+/* Versioned extension to gtm_growth_config_t (whose layout is frozen).
+ * Always call gtm_growth_config_ext_init() first: it sets struct_size so the
+ * library only reads fields the caller's header knew about.
+ *
+ * Suppressed = disabled || (suppress_test_builds && build_channel is DEBUG,
+ * TESTFLIGHT or INTERNAL_TEST). A suppressed client sends nothing, starts no
+ * worker thread and writes nothing to cache_dir. */
+typedef struct gtm_growth_config_ext {
+  uint32_t struct_size;     /* sizeof(gtm_growth_config_ext_t); set by _init */
+  int suppress_test_builds; /* default 0 */
+  int disabled;             /* default 0 */
+  int build_channel;        /* gtm_build_channel_t; default GTM_BUILD_CHANNEL_UNKNOWN */
+} gtm_growth_config_ext_t;
+
 GTMEASY_API void gtm_growth_config_init(gtm_growth_config_t* config);
 GTMEASY_API gtm_error_t gtm_growth_create(const gtm_growth_config_t* config, gtm_growth_t** out);
+GTMEASY_API void gtm_growth_config_ext_init(gtm_growth_config_ext_t* ext);
+/* ext may be NULL (same as gtm_growth_create). ext->struct_size == 0 is
+ * GTM_ERROR_INVALID_ARGUMENT; fields beyond struct_size use their defaults. */
+GTMEASY_API gtm_error_t gtm_growth_create_ext(const gtm_growth_config_t* config,
+                                              const gtm_growth_config_ext_t* ext,
+                                              gtm_growth_t** out);
 GTMEASY_API void gtm_growth_destroy(gtm_growth_t* client);
 
 GTMEASY_API gtm_error_t gtm_growth_identify(gtm_growth_t* client,
@@ -83,6 +116,10 @@ GTMEASY_API gtm_error_t gtm_growth_record_click_id(gtm_growth_t* client,
 GTMEASY_API int gtm_growth_capture_click_ids(gtm_growth_t* client, const char* url);
 GTMEASY_API gtm_error_t gtm_growth_flush(gtm_growth_t* client, int timeout_ms);
 GTMEASY_API gtm_error_t gtm_growth_reset(gtm_growth_t* client);
+
+/* 1 when the client drops all events (see gtm_growth_config_ext_t), else 0. */
+GTMEASY_API int gtm_growth_is_suppressed(gtm_growth_t* client);
+GTMEASY_API gtm_build_channel_t gtm_growth_build_channel(gtm_growth_t* client);
 
 GTMEASY_API const char* gtm_growth_anonymous_id(gtm_growth_t* client);
 GTMEASY_API const char* gtm_growth_user_id(gtm_growth_t* client);

@@ -23,6 +23,8 @@ class ClickIdStore {
   bool record(const std::string& provider, const std::string& value, std::string* error);
   void merge_into(nlohmann::json& ctx) const;
   const std::unordered_map<std::string, ClickEntry>& entries() const { return ids_; }
+  // false = keep click ids in memory only (suppressed clients).
+  void set_persist(bool persist) { persist_ = persist; }
 
  private:
   void prune();
@@ -31,6 +33,7 @@ class ClickIdStore {
 
   class Storage* storage_;
   std::unordered_map<std::string, ClickEntry> ids_;
+  bool persist_ = true;
 };
 
 } // namespace internal

@@ -132,115 +132,10 @@ nlohmann::json build_identify(gtm_growth* c,
   return body;
 }
 
-static bool load_identity(gtm_growth* c, std::string* error) {
-  if (!c->storage.load_or_create_id("anonymous_id", &c->anonymous_id, error)) {
-    return false;
-  }
-  if (!c->storage.load_or_create_id("device_id", &c->device_id, error)) {
-    return false;
-  }
-  std::string uid;
-  if (read_file(c->storage.path_for("user_id"), &uid, nullptr)) {
-    c->user_id = trim(uid);
-  }
-  return true;
-}
-
 } // namespace internal
 } // namespace gtmeasy
 
 extern "C" {
-
-void gtm_growth_config_init(gtm_growth_config_t* config) {
-  if (!config) {
-    return;
-  }
-  *config = gtm_growth_config_t{};
-  config->flush_at = 20;
-  config->flush_interval_ms = 30000;
-  config->max_queue_size = 1000;
-  config->request_timeout_ms = 10000;
-  config->use_batch_endpoint = 1;
-  config->log_level = GTM_LOG_WARN;
-}
-
-gtm_error_t gtm_growth_create(const gtm_growth_config_t* config, gtm_growth_t** out) {
-  if (!config || !out) {
-    return GTM_ERROR_INVALID_ARGUMENT;
-  }
-  *out = nullptr;
-  if (!config->api_key || config->api_key[0] == '\0' || !config->app || config->app[0] == '\0' ||
-      !config->cache_dir || config->cache_dir[0] == '\0') {
-    return GTM_ERROR_INVALID_ARGUMENT;
-  }
-
-  auto* client = new (std::nothrow) gtm_growth(config->cache_dir);
-  if (!client) {
-    return GTM_ERROR_UNKNOWN;
-  }
-  client->api_key = config->api_key;
-  client->app = config->app;
-  client->environment =
-      (config->environment && config->environment[0] != '\0') ? config->environment : "production";
-  client->base_url = (config->base_url && config->base_url[0] != '\0')
-                         ? config->base_url
-                         : "https://www.gtmeasy.com/api/v1/growth";
-  client->cache_dir = config->cache_dir;
-  if (config->app_version) {
-    client->app_version = config->app_version;
-  }
-  if (config->build_number) {
-    client->build_number = config->build_number;
-  }
-  client->flush_at = config->flush_at > 0 ? config->flush_at : 20;
-  client->flush_interval_ms = config->flush_interval_ms > 0 ? config->flush_interval_ms : 30000;
-  client->max_queue_size = config->max_queue_size > 0 ? config->max_queue_size : 1000;
-  client->request_timeout_ms = config->request_timeout_ms > 0 ? config->request_timeout_ms : 10000;
-  client->use_batch = config->use_batch_endpoint != 0;
-  client->log_level = config->log_level;
-  client->log_fn = config->log_fn;
-  client->log_user_data = config->log_user_data;
-  client->queue.set_max_queue_size(client->max_queue_size);
-
-  std::string err;
-  if (!client->storage.ensure_dir(&err)) {
-    delete client;
-    return GTM_ERROR_STORAGE;
-  }
-  if (!gtmeasy::internal::load_identity(client, &err)) {
-    delete client;
-    return GTM_ERROR_STORAGE;
-  }
-  client->clicks.load();
-  client->device = gtmeasy::internal::snapshot_context();
-  client->transport = gtmeasy::internal::create_transport();
-
-  try {
-    client->worker = std::thread([client] { gtmeasy::internal::worker_main(client); });
-    client->worker_started = true;
-  } catch (...) {
-    delete client;
-    return GTM_ERROR_UNKNOWN;
-  }
-
-  *out = client;
-  return GTM_OK;
-}
-
-void gtm_growth_destroy(gtm_growth_t* client) {
-  if (!client) {
-    return;
-  }
-  gtmeasy::internal::run_flush_cycle(client, 2000);
-  client->stop = true;
-  client->flush_requested = true;
-  client->queue.notify();
-  client->cv.notify_all();
-  if (client->worker.joinable()) {
-    client->worker.join();
-  }
-  delete client;
-}
 
 gtm_error_t gtm_growth_identify(gtm_growth_t* client,
                                 const char* user_id,
@@ -259,6 +154,9 @@ gtm_error_t gtm_growth_identify(gtm_growth_t* client,
     return err;
   }
   client->user_id = user_id;
+  if (client->suppressed) {
+    return GTM_OK; // memory only: no persistence, no enqueue
+  }
   std::string werr;
   client->storage.write_id("user_id", user_id, &werr);
   auto body = gtmeasy::internal::build_identify(client, user_id, username, email, traits);
@@ -285,6 +183,9 @@ gtm_error_t gtm_growth_track(gtm_growth_t* client,
   auto props = gtmeasy::internal::parse_object_json(properties_json, &err);
   if (err != GTM_OK) {
     return err;
+  }
+  if (client->suppressed) {
+    return GTM_OK;
   }
   auto body = gtmeasy::internal::build_event(client, event_name, props, false, 0, nullptr);
   std::string werr;
@@ -314,6 +215,9 @@ gtm_error_t gtm_growth_track_metric(gtm_growth_t* client,
   if (err != GTM_OK) {
     return err;
   }
+  if (client->suppressed) {
+    return GTM_OK;
+  }
   auto body =
       gtmeasy::internal::build_event(client, event_name, props, true, metric_value, metric_label);
   std::string werr;
@@ -330,6 +234,9 @@ gtm_error_t gtm_growth_track_metric(gtm_growth_t* client,
 gtm_error_t gtm_growth_track_first_open(gtm_growth_t* client) {
   if (!client) {
     return GTM_ERROR_NOT_INITIALIZED;
+  }
+  if (client->suppressed) {
+    return GTM_OK; // no events and no last_version write
   }
   nlohmann::json last;
   const bool had = client->storage.read_json("last_version", &last, nullptr);
@@ -395,6 +302,9 @@ gtm_error_t gtm_growth_flush(gtm_growth_t* client, int timeout_ms) {
   if (!client) {
     return GTM_ERROR_NOT_INITIALIZED;
   }
+  if (client->suppressed) {
+    return GTM_OK; // never send, never touch the persisted queue
+  }
   client->flush_requested = true;
   client->queue.notify();
   client->cv.notify_all();
@@ -420,8 +330,11 @@ gtm_error_t gtm_growth_reset(gtm_growth_t* client) {
   }
   std::string err;
   client->user_id.clear();
-  client->storage.delete_id("user_id", &err);
   client->anonymous_id = gtmeasy::internal::uuid_v4();
+  if (client->suppressed) {
+    return GTM_OK; // memory only
+  }
+  client->storage.delete_id("user_id", &err);
   if (!client->storage.write_id("anonymous_id", client->anonymous_id, &err)) {
     return GTM_ERROR_STORAGE;
   }

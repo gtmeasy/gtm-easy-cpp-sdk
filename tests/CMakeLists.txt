@@ -29,6 +29,7 @@ add_executable(gtmeasy_growth_tests
   test_context.cpp
   test_client.cpp
   test_c_api.cpp
+  test_suppress.cpp
 )
 
 target_include_directories(gtmeasy_growth_tests PRIVATE

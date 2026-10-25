@@ -8,7 +8,7 @@ Sibling SDKs: [Apple (Swift)](https://github.com/gtmeasy/gtm-easy-apple-sdk) · 
 
 ## Status
 
-`0.1.0` — first buildable release. Public surface is the C ABI in `include/gtmeasy/growth_c.h` and the C++17 wrapper in `include/gtmeasy/growth.h`.
+`0.2.0` — adds `suppressTestBuilds` / `buildChannel` (see [Suppressing test builds](#suppressing-test-builds)). Public surface is the C ABI in `include/gtmeasy/growth_c.h` and the C++17 wrapper in `include/gtmeasy/growth.h`.
 
 ## Layout
 
@@ -42,7 +42,50 @@ analytics->flush();
 
 `track()` / `identify()` never block on the network: they validate, enqueue, and return. Call `flush()` (or destroy the client) to wait for delivery.
 
-Version string: `gtmeasy::GrowthAnalytics::version()` (currently `"0.1.0"`).
+Version string: `gtmeasy::GrowthAnalytics::version()` (currently `"0.2.0"`).
+
+## Suppressing test builds
+
+Keep debug / TestFlight / internal test builds from sending events (install
+counts, funnels and notifications stay clean). The SDK does **not** detect the
+channel itself — it is compiled separately from your app, so its `NDEBUG` says
+nothing about your build — pass it in:
+
+```cpp
+gtmeasy::Config cfg;
+// ...
+cfg.suppressTestBuilds = true;
+#ifndef NDEBUG
+cfg.buildChannel = gtmeasy::BuildChannel::Debug;
+#else
+cfg.buildChannel = gtmeasy::BuildChannel::Production;
+#endif
+// cfg.disabled = true;   // hard off switch, regardless of channel
+
+auto analytics = gtmeasy::GrowthAnalytics::create(cfg);
+if (analytics && analytics->isSuppressed()) { /* events are dropped */ }
+```
+
+Rule: `suppressed = disabled || (suppressTestBuilds && buildChannel ∈ {Debug, TestFlight, InternalTest})`.
+`BuildChannel::Unknown` (the default) is never suppressed. When suppressed, every
+call still returns `GTM_OK` but nothing is sent and nothing is written to
+`cacheDir`: no worker thread, no flush (explicit or on destruction), the on-disk
+queue is left untouched, `trackFirstOpen()` records no version baseline (so the
+later production build still sends `app.first_open`), and `identify()` / `reset()`
+/ click ids only change memory. An existing anonymous id is reused; otherwise an
+in-memory one is generated. One info-level log line is emitted at create.
+
+C API — the original `gtm_growth_config_t` layout is unchanged; use the versioned extension:
+
+```c
+gtm_growth_config_ext_t ext;
+gtm_growth_config_ext_init(&ext);          /* sets ext.struct_size */
+ext.suppress_test_builds = 1;
+ext.build_channel = GTM_BUILD_CHANNEL_DEBUG;
+gtm_growth_t* client = NULL;
+gtm_growth_create_ext(&cfg, &ext, &client); /* ext may be NULL */
+int suppressed = gtm_growth_is_suppressed(client);
+```
 
 ## Integration
 
@@ -61,7 +104,7 @@ The SDK ships as a CMake package. Target: `GtmEasy::growth` · package name: `Gt
 ```json
 {
   "dependencies": [
-    { "name": "gtmeasy-growth", "version>=": "0.1.0" }
+    { "name": "gtmeasy-growth", "version>=": "0.2.0" }
   ]
 }
 ```
@@ -91,7 +134,7 @@ include(FetchContent)
 FetchContent_Declare(
   gtmeasy_growth
   GIT_REPOSITORY https://github.com/gtmeasy/gtm-easy-cpp-sdk.git
-  GIT_TAG        v0.1.0
+  GIT_TAG        v0.2.0
   GIT_SHALLOW    TRUE
 )
 FetchContent_MakeAvailable(gtmeasy_growth)

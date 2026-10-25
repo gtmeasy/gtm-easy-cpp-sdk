@@ -2,7 +2,7 @@
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO gtmeasy/gtm-easy-cpp-sdk
-    REF v0.1.0
+    REF v0.2.0
     SHA512 0
     HEAD_REF main
 )
